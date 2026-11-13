@@ -1,10 +1,24 @@
 # Railwise — Supplier Risk Intelligence for Rail Procurement
 
-Railwise helps a rail procurement team move from a supplier-risk question to a reviewable sourcing decision. Buyers can explore the supplied 10,000-supplier dataset, ask questions in plain language, screen a component shortlist, compare suppliers, record requirement evidence, and prepare a quote-and-contract negotiation review.
-
-**Temporary demo URL:** [https://81.85.1.219.nip.io/](https://81.85.1.219.nip.io/) — DNS did not resolve when checked on 18 Oct 2026; verify or restore the host before presenting.
+Railwise is a supplier-risk and sourcing decision-support prototype for rail procurement. It combines an interactive web application, a FastAPI service, and a 10,000-supplier dataset to help buyers explore risk, compare shortlists, record evidence, and prepare commercial reviews.
 
 **Track:** Siemens Supplier Risk Intelligence · **Repository:** [Ganeshlakshmana/Nebius-hack](https://github.com/Ganeshlakshmana/Nebius-hack)
+
+## Project layout
+
+| Path | Purpose |
+|---|---|
+| `app/` | Web application pages, API routes, and shared styling. |
+| `components/` | Dashboard workspaces and reusable interface components. |
+| `backend/app/` | FastAPI routes, data stores, services, and specialist agents. |
+| `backend/tests/` | Backend API, component-screening, and guardrail tests. |
+| `data/` | Supplier CSV snapshot and risk-criteria documentation. |
+| `public/` | Static browser data and public assets. |
+| `db/`, `drizzle/` | Application database schema and migrations/configuration. |
+| `integrations/n8n/` | Optional commercial-monitor workflow templates and setup notes. |
+| `docs/` | Architecture, challenge readiness, audits, and demo guidance. |
+| `deploy/` | Deployment and runtime configuration. |
+| `tests/` | Frontend and integration-level tests. |
 
 ## Demo walkthrough
 
@@ -124,12 +138,12 @@ Challenge input files: [`data/supplier_risk_dataset.csv`](data/supplier_risk_dat
 
 ## Stack and backend endpoints
 
-- **Frontend:** React, TypeScript, shadcn/ui, Vinext/Vite.
-- **API:** FastAPI; **chat orchestration:** LangGraph StateGraph; **model:** configured through an OpenAI-compatible endpoint (Nebius Token Factory/Nemotron in the demo configuration).
+- **Frontend:** React 19, TypeScript, Tailwind CSS, and shadcn-style components, served through Vinext on Vite.
+- **API:** FastAPI and Pydantic; **chat orchestration:** LangGraph StateGraph; optional model planning uses an OpenAI-compatible endpoint such as Nebius Token Factory.
 - **Supplier analytics:** in-memory DuckDB reads the supplied CSV through a read-only analytics view.
 - **Application state:** SQLite stores reports, search cache, operation events, commercial cases and audit events.
 - **Research:** Tavily Search and Extract, with bounded result counts and cached search results.
-- **Hosting:** Nebius CPU VM, Docker Compose, Caddy HTTPS reverse proxy. The backend stays on the private Docker network.
+- **Hosting:** deployment assets support a Nebius CPU VM, Docker Compose, and a Caddy HTTPS reverse proxy; the backend is intended to remain on a private Docker network.
 
 Useful backend endpoints:
 
@@ -146,22 +160,45 @@ Useful backend endpoints:
 
 ## Run locally
 
-Requires Node.js 22.13+, npm, and Python 3.11+.
+Requires Node.js 22.13 or newer, npm, and Python 3.11 or newer. Run the backend and web app in separate terminals from the repository root.
 
-```sh
-# Terminal 1 — install and start the backend from the repository root
-python -m pip install -e backend
-cp .env.example .env
+### 1. Configure and run the backend
+
+```powershell
+python -m pip install -e "backend[test]"
+Copy-Item .env.example .env
 python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
 
-# Terminal 2 — start the web app from the repository root
+The API health check is [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health), and interactive OpenAPI documentation is available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+
+### 2. Install and run the web app
+
+In a second terminal at the repository root:
+
+```powershell
 npm run install:ci
 npm run dev
 ```
 
-Open [http://127.0.0.1:5173](http://127.0.0.1:5173). The backend health endpoint is [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health); API documentation is at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+Open the local URL printed by Vite (normally [http://127.0.0.1:5173](http://127.0.0.1:5173)). The frontend chat proxy uses `BACKEND_URL`, which defaults to `http://127.0.0.1:8000`.
 
-For live company research and model-assisted planning, set `OFFLINE_MODE=false`, `TAVILY_API_KEY`, `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` in the private `.env`. Demo browsing and deterministic risk calculations do not require provider calls. Never commit `.env` or paste provider keys into a workflow export.
+### Environment configuration
+
+The checked-in `.env.example` documents the supported settings. The core app runs in offline mode by default; live provider access is optional.
+
+| Variable | Purpose |
+|---|---|
+| `OFFLINE_MODE` | Keep external research and model calls disabled when `true` (default). Set to `false` only when providers are configured. |
+| `DATASET_PATH` | Optional path to the supplier CSV; defaults to `data/supplier_risk_dataset.csv`. |
+| `BACKEND_URL` | Backend URL used by the frontend server-side API proxy. |
+| `TAVILY_API_KEY` | Optional key for live company research and search. |
+| `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL` | Optional OpenAI-compatible model settings for bounded planning/review. |
+| `INTERNAL_AGENT_API_KEY`, `INTERNAL_AGENT_SECRET` | Credentials for signed internal agent messages; use private, strong values outside local development. |
+| `COMMERCIAL_API_KEY`, `N8N_COMMERCIAL_WEBHOOK`, `N8N_WEBHOOK_KEY` | Optional server-side commercial workflow integration settings. |
+| `FEED_SPEED_SECONDS` | Simulated operations-feed timing setting. |
+
+Keep `.env` local and never commit real credentials. Browsing the demo and deterministic dataset calculations do not require provider keys.
 
 ## n8n negotiation-preparation workflow
 
@@ -169,10 +206,11 @@ The repository includes an authenticated app-to-n8n bridge and importable workfl
 
 ## Tests and references
 
-```sh
-cd backend
-python -m pip install -e '.[test]'
-python -m pytest -q
+```powershell
+python -m pip install -e "backend[test]"
+python -m pytest backend/tests -q
+npm run lint
+npm run build
 ```
 
-See [challenge readiness and gaps](docs/challenge-readiness.md), [data and assistant audit](docs/DATA-AND-ASSISTANT-AUDIT.md), [LangGraph supervisor controls](docs/LANGGRAPH-SUPERVISOR.md), and [the demo script](docs/demo-script.md).
+The backend tests use pytest. `npm run lint` and `npm run build` validate the web application. See [challenge readiness and gaps](docs/challenge-readiness.md), [data and assistant audit](docs/DATA-AND-ASSISTANT-AUDIT.md), [LangGraph supervisor controls](docs/LANGGRAPH-SUPERVISOR.md), and [the demo script](docs/demo-script.md).
